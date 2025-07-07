@@ -9,6 +9,15 @@ OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 
 # --- Функции для работы с OpenWeatherMap ---
 
+def escape_markdown(text):
+    """
+    Экранирует специальные символы для Telegram Markdown V2.
+    """
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in special_chars:
+        text = text.replace(char, f'\\{char}')
+    return text
+
 def get_weather_data(city_name, api_key):
     """
     Получает данные о текущей погоде и 5-дневный прогноз для указанного города.
@@ -62,11 +71,11 @@ def format_weather_message(current_data, forecast_data):
     if not current_data:
         return "Не удалось получить данные о погоде."
 
-    city_name = current_data['name']
-    country = current_data['sys']['country']
+    city_name = escape_markdown(current_data['name'])
+    country = escape_markdown(current_data['sys']['country'])
     temp = current_data['main']['temp']
     feels_like = current_data['main']['feels_like']
-    description = current_data['weather'][0]['description']
+    description = escape_markdown(current_data['weather'][0]['description'])
     humidity = current_data['main']['humidity']
     wind_speed = current_data['wind']['speed']
     rain = current_data.get('rain', {}).get('1h', 0) if current_data.get('rain') else 0
@@ -74,15 +83,15 @@ def format_weather_message(current_data, forecast_data):
 
     message = (
         f"Погода в *{city_name}, {country}*:\n"
-        f"🌡️ *Температура*: {temp:.1f}°C (ощущается как {feels_like:.1f}°C)\n"
+        f"🌡️ *Температура*: {temp:.1f}°C \\(ощущается как {feels_like:.1f}°C\\)\n"
         f"☁️ *Описание*: {description.capitalize()}\n"
         f"💧 *Влажность*: {humidity}%\n"
         f"💨 *Скорость ветра*: {wind_speed:.1f} м/с\n"
     )
     if rain > 0:
-        message += f"🌧️ *Осадки (дождь за 1 час)*: {rain} мм\n"
+        message += f"🌧️ *Осадки \\(дождь за 1 час\\)*: {rain} мм\n"
     if snow > 0:
-        message += f"🌨️ *Осадки (снег за 1 час)*: {snow} мм\n"
+        message += f"🌨️ *Осадки \\(снег за 1 час\\)*: {snow} мм\n"
 
     if forecast_data and forecast_data.get('list'):
         message += "\n*Прогноз на ближайшее время:*\n"
@@ -98,10 +107,10 @@ def format_weather_message(current_data, forecast_data):
         for date, item in forecast_by_day.items():
             temp_min = item['main']['temp_min']
             temp_max = item['main']['temp_max']
-            description_forecast = item['weather'][0]['description']
+            description_forecast = escape_markdown(item['weather'][0]['description'])
             message += (
                 f"🗓️ *{date}*: {description_forecast.capitalize()}, "
-                f"темп. от {temp_min:.1f}°C до {temp_max:.1f}°C\n"
+                f"темп\\. от {temp_min:.1f}°C до {temp_max:.1f}°C\n"
             )
 
     return message
