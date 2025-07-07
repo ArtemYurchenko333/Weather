@@ -166,8 +166,8 @@ def format_air_quality_message(air_data):
     
     aqi_text = aqi_levels.get(aqi, "Неизвестно")
     
-    message = f"\n🌬️ *Качество воздуха*: {aqi_text} \\(AQI: {aqi}\\)\n"
-    message += f"• PM2\\.5: {components.get('pm2_5', 'N/A')} μg/m³\n"
+    message = f"\n🌬️ *Качество воздуха*: {aqi_text}, AQI: {aqi}\n"
+    message += f"• PM2.5: {components.get('pm2_5', 'N/A')} μg/m³\n"
     message += f"• PM10: {components.get('pm10', 'N/A')} μg/m³\n"
     message += f"• NO₂: {components.get('no2', 'N/A')} μg/m³\n"
     message += f"• O₃: {components.get('o3', 'N/A')} μg/m³\n"
@@ -249,15 +249,15 @@ def format_weather_message(current_data, forecast_data, air_data=None, solar_dat
 
     message = (
         f"Погода в *{city_name}, {country}*:\n"
-        f"🌡️ *Температура*: {temp:.1f}°C (ощущается как {feels_like:.1f}°C)\n"
+        f"🌡️ *Температура*: {temp:.1f}°C, ощущается как {feels_like:.1f}°C\n"
         f"☁️ *Описание*: {description.capitalize()}\n"
         f"💧 *Влажность*: {humidity}%\n"
         f"💨 *Скорость ветра*: {wind_speed:.1f} м/с\n"
     )
     if rain > 0:
-        message += f"🌧️ *Осадки (дождь за 1 час)*: {rain} мм\n"
+        message += f"🌧️ *Осадки, дождь за 1 час*: {rain} мм\n"
     if snow > 0:
-        message += f"🌨️ *Осадки (снег за 1 час)*: {snow} мм\n"
+        message += f"🌨️ *Осадки, снег за 1 час*: {snow} мм\n"
 
     # Добавляем информацию о качестве воздуха
     if air_data:
@@ -327,7 +327,8 @@ async def weather_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         radiation_data = get_radiation_data(lat, lon)
         
         weather_text = format_weather_message(current_weather, forecast, air_data, solar_data, radiation_data)
-        print(weather_text)  # Для отладки
+        print("Длина сообщения:", len(weather_text))  # Для отладки
+        print("Первые 200 символов:", weather_text[:200])  # Для отладки
         await update.message.reply_markdown_v2(weather_text)
     else:
         await update.message.reply_text(forecast or "Не удалось получить данные о погоде для этого города.")
