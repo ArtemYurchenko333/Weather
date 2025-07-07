@@ -97,20 +97,65 @@ def get_solar_activity_data():
     base_url = "https://services.swpc.noaa.gov/json/goes/primary/xray-1-day.json"
     
     try:
+        print("Запрашиваю данные о солнечной активности...")
         response = requests.get(base_url, timeout=10)
         response.raise_for_status()
         data = response.json()
         
+        print(f"Получено {len(data) if data else 0} записей о солнечной активности")
+        
         # Получаем последние данные о солнечных вспышках
         if data and len(data) > 0:
             latest_flare = data[-1]
-            return {
+            result = {
                 'flare_class': latest_flare.get('class', 'N/A'),
                 'flare_time': latest_flare.get('time_tag', 'N/A'),
                 'intensity': latest_flare.get('flux', 'N/A')
             }
-    except:
-        pass
+            print(f"Данные о вспышке: {result}")
+            return result
+        else:
+            print("Нет данных о солнечных вспышках")
+    except Exception as e:
+        print(f"Ошибка при получении данных о солнечной активности: {e}")
+    
+    # Альтернативный источник - магнитные бури
+    try:
+        print("Пробую альтернативный источник данных...")
+        # Используем другой API для магнитных бурь
+        geomagnetic_url = "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json"
+        response = requests.get(geomagnetic_url, timeout=10)
+        response.raise_for_status()
+        geomagnetic_data = response.json()
+        
+        if geomagnetic_data and len(geomagnetic_data) > 0:
+            latest_kp = geomagnetic_data[-1]
+            kp_index = latest_kp.get('kp_index', 0)
+            
+            # Определяем уровень магнитной активности
+            if kp_index >= 5:
+                storm_level = "Сильная магнитная буря"
+                flare_class = "X"
+            elif kp_index >= 4:
+                storm_level = "Умеренная магнитная буря"
+                flare_class = "M"
+            elif kp_index >= 3:
+                storm_level = "Слабая магнитная буря"
+                flare_class = "C"
+            else:
+                storm_level = "Магнитное поле спокойное"
+                flare_class = "A"
+            
+            result = {
+                'flare_class': flare_class,
+                'flare_time': latest_kp.get('time_tag', 'N/A'),
+                'intensity': f"Kp={kp_index}",
+                'storm_level': storm_level
+            }
+            print(f"Данные о магнитной активности: {result}")
+            return result
+    except Exception as e:
+        print(f"Ошибка при получении данных о магнитной активности: {e}")
     
     return None
 
@@ -176,24 +221,31 @@ def format_air_quality_message(air_data):
 
 def format_solar_activity_message(solar_data):
     """
-    Форматирует данные о солнечной активности.
+    Форматирует данные о солнечной активности и магнитных бурях.
     """
     if not solar_data:
         return ""
     
-    message = f"\n☀️ *Солнечная активность*:\n"
-    message += f"• Класс вспышки: {solar_data.get('flare_class', 'N/A')}\n"
+    message = f"\n☀️ *Солнечная активность и магнитные бури*:\n"
+    message += f"• Класс активности: {solar_data.get('flare_class', 'N/A')}\n"
     message += f"• Время: {solar_data.get('flare_time', 'N/A')}\n"
     message += f"• Интенсивность: {solar_data.get('intensity', 'N/A')}\n"
     
     # Добавляем информацию о магнитных бурях
     flare_class = solar_data.get('flare_class', '')
+    storm_level = solar_data.get('storm_level', '')
+    
+    if storm_level:
+        message += f"• *Магнитная активность*: {storm_level}\n"
+    
     if flare_class in ['M', 'X']:
         message += "⚠️ *Внимание! Возможны магнитные бури*\n"
     elif flare_class == 'C':
         message += "ℹ️ *Умеренная солнечная активность*\n"
+    elif flare_class == 'A':
+        message += "✅ *Магнитное поле спокойное*\n"
     else:
-        message += "✅ *Солнечная активность в норме*\n"
+        message += "ℹ️ *Солнечная активность в норме*\n"
     
     return message
 
@@ -325,6 +377,10 @@ async def weather_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         air_data = get_air_quality_data(lat, lon, AIR_QUALITY_API_KEY)
         solar_data = get_solar_activity_data()
         radiation_data = get_radiation_data(lat, lon)
+        
+        print(f"Данные о качестве воздуха: {'Получены' if air_data else 'Не получены'}")
+        print(f"Данные о солнечной активности: {'Получены' if solar_data else 'Не получены'}")
+        print(f"Данные о радиации: {'Получены' if radiation_data else 'Не получены'}")
         
         weather_text = format_weather_message(current_weather, forecast, air_data, solar_data, radiation_data)
         print("Длина сообщения:", len(weather_text))  # Для отладки
