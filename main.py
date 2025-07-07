@@ -360,7 +360,18 @@ def main():
     application.add_handler(MessageHandler(filters.COMMAND | filters.TEXT, unknown_message))
 
     print("Бот запущен! Отправь ему сообщение в Telegram.")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    try:
+        # Очищаем предыдущие обновления перед запуском
+        application.bot.delete_webhook(drop_pending_updates=True)
+        application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    except Exception as e:
+        if "Conflict" in str(e) or "terminated by other getUpdates request" in str(e):
+            print("Ошибка: Другой экземпляр бота уже запущен!")
+            print("Пожалуйста, остановите все другие экземпляры бота и попробуйте снова.")
+            print("Или подождите несколько секунд и попробуйте снова.")
+        else:
+            print(f"Ошибка при запуске бота: {e}")
+        return
 
 if __name__ == "__main__":
     main()
