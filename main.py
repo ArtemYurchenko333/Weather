@@ -1,8 +1,9 @@
+import os
 import requests
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN5")
+TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 
 
@@ -119,7 +120,7 @@ async def weather_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """Обрабатывает текстовые сообщения от пользователя (название города)."""
     city_name = update.message.text
     
-    if not OPENWEATHER_API_KEY or OPENWEATHER_API_KEY == "ТВОЙ_OPENWEATHER_API_КЛЮЧ":
+    if not OPENWEATHER_API_KEY:
         await update.message.reply_text("Ошибка: API ключ OpenWeatherMap не настроен. Пожалуйста, свяжитесь с администратором бота.")
         return
 
@@ -140,11 +141,11 @@ async def unknown_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 def main():
     """Запускает бота."""
-    if TELEGRAM_BOT_TOKEN == "ТВОЙ_ТЕЛЕГРАМ_БОТ_ТОКЕН":
-        print("Ошибка: Пожалуйста, замени 'ТВОЙ_ТЕЛЕГРАМ_БОТ_ТОКЕН' на свой реальный токен бота из BotFather.")
+    if not TELEGRAM_BOT_TOKEN:
+        print("Ошибка: Переменная окружения BOT_TOKEN не установлена. Пожалуйста, установите токен бота из BotFather.")
         return
-    if OPENWEATHER_API_KEY == "ТВОЙ_OPENWEATHER_API_КЛЮЧ":
-        print("Ошибка: Пожалуйста, замени 'ТВОЙ_OPENWEATHER_API_КЛЮЧ' на свой реальный API ключ OpenWeatherMap.")
+    if not OPENWEATHER_API_KEY:
+        print("Ошибка: Переменная окружения OPENWEATHER_API_KEY не установлена. Пожалуйста, установите API ключ OpenWeatherMap.")
         return
 
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
