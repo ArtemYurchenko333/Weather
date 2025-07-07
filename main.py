@@ -1,13 +1,18 @@
 import os
 import requests
+import aiohttp
+import asyncio
+from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 TELEGRAM_BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
+AIR_QUALITY_API_KEY = os.getenv("AIR_QUALITY_API_KEY")  # OpenWeatherMap Air Quality API
+SOLAR_API_KEY = os.getenv("SOLAR_API_KEY")  # NASA Solar Flare API (бесплатный)
 
 
-# --- Функции для работы с OpenWeatherMap ---
+# --- Функции для работы с различными API ---
 
 def escape_markdown(text):
     """
@@ -64,9 +69,171 @@ def get_weather_data(city_name, api_key):
 
     return current_weather_data, forecast_data
 
-def format_weather_message(current_data, forecast_data):
+def get_air_quality_data(lat, lon, api_key):
     """
-    Форматирует полученные данные о погоде в читаемое сообщение.
+    Получает данные о качестве воздуха.
+    """
+    if not api_key:
+        return None
+    
+    base_url = "http://api.openweathermap.org/data/2.5/air_pollution"
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "appid": api_key
+    }
+    
+    try:
+        response = requests.get(base_url, params=params)
+        response.raise_for_status()
+        return response.json()
+    except:
+        return None
+
+def get_solar_activity_data():
+    """
+    Получает данные о солнечной активности и магнитных бурях.
+    """
+    # Используем бесплатный API от NOAA
+    base_url = "https://services.swpc.noaa.gov/json/goes/primary/xray-1-day.json"
+    
+    try:
+        response = requests.get(base_url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Получаем последние данные о солнечных вспышках
+        if data and len(data) > 0:
+            latest_flare = data[-1]
+            return {
+                'flare_class': latest_flare.get('class', 'N/A'),
+                'flare_time': latest_flare.get('time_tag', 'N/A'),
+                'intensity': latest_flare.get('flux', 'N/A')
+            }
+    except:
+        pass
+    
+    return None
+
+def get_radiation_data(lat, lon):
+    """
+    Получает данные о радиационном фоне (используем OpenWeatherMap UV Index).
+    """
+    if not OPENWEATHER_API_KEY:
+        return None
+    
+    base_url = "http://api.openweathermap.org/data/2.5/air_pollution"
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "appid": OPENWEATHER_API_KEY
+    }
+    
+    try:
+        response = requests.get(base_url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        if data and 'list' in data and len(data['list']) > 0:
+            current = data['list'][0]
+            return {
+                'uv_index': current.get('main', {}).get('aqi', 'N/A'),
+                'components': current.get('components', {})
+            }
+    except:
+        pass
+    
+    return None
+
+def format_air_quality_message(air_data):
+    """
+    Форматирует данные о качестве воздуха.
+    """
+    if not air_data or 'list' not in air_data or len(air_data['list']) == 0:
+        return ""
+    
+    current = air_data['list'][0]
+    aqi = current['main']['aqi']
+    components = current['components']
+    
+    # Определяем качество воздуха
+    aqi_levels = {
+        1: "Хорошее",
+        2: "Удовлетворительное", 
+        3: "Умеренное",
+        4: "Плохое",
+        5: "Очень плохое"
+    }
+    
+    aqi_text = aqi_levels.get(aqi, "Неизвестно")
+    
+    message = f"\n🌬️ *Качество воздуха*: {aqi_text} \\(AQI: {aqi}\\)\n"
+    message += f"• PM2\\.5: {components.get('pm2_5', 'N/A')} μg/m³\n"
+    message += f"• PM10: {components.get('pm10', 'N/A')} μg/m³\n"
+    message += f"• NO₂: {components.get('no2', 'N/A')} μg/m³\n"
+    message += f"• O₃: {components.get('o3', 'N/A')} μg/m³\n"
+    
+    return message
+
+def format_solar_activity_message(solar_data):
+    """
+    Форматирует данные о солнечной активности.
+    """
+    if not solar_data:
+        return ""
+    
+    message = f"\n☀️ *Солнечная активность*:\n"
+    message += f"• Класс вспышки: {solar_data.get('flare_class', 'N/A')}\n"
+    message += f"• Время: {solar_data.get('flare_time', 'N/A')}\n"
+    message += f"• Интенсивность: {solar_data.get('intensity', 'N/A')}\n"
+    
+    # Добавляем информацию о магнитных бурях
+    flare_class = solar_data.get('flare_class', '')
+    if flare_class in ['M', 'X']:
+        message += "⚠️ *Внимание! Возможны магнитные бури*\n"
+    elif flare_class == 'C':
+        message += "ℹ️ *Умеренная солнечная активность*\n"
+    else:
+        message += "✅ *Солнечная активность в норме*\n"
+    
+    return message
+
+def format_radiation_message(radiation_data):
+    """
+    Форматирует данные о радиации.
+    """
+    if not radiation_data:
+        return ""
+    
+    uv_index = radiation_data.get('uv_index', 'N/A')
+    components = radiation_data.get('components', {})
+    
+    message = f"\n☢️ *Радиационный фон*:\n"
+    message += f"• УФ индекс: {uv_index}\n"
+    
+    # Определяем уровень УФ излучения
+    if uv_index != 'N/A':
+        try:
+            uv = int(uv_index)
+            if uv <= 2:
+                uv_level = "Низкий"
+            elif uv <= 5:
+                uv_level = "Умеренный"
+            elif uv <= 7:
+                uv_level = "Высокий"
+            elif uv <= 10:
+                uv_level = "Очень высокий"
+            else:
+                uv_level = "Экстремальный"
+            message += f"• Уровень УФ: {uv_level}\n"
+        except:
+            pass
+    
+    return message
+
+def format_weather_message(current_data, forecast_data, air_data=None, solar_data=None, radiation_data=None):
+    """
+    Форматирует полученные данные о погоде и дополнительную информацию в читаемое сообщение.
     """
     if not current_data:
         return "Не удалось получить данные о погоде."
@@ -92,6 +259,18 @@ def format_weather_message(current_data, forecast_data):
         message += f"🌧️ *Осадки (дождь за 1 час)*: {rain} мм\n"
     if snow > 0:
         message += f"🌨️ *Осадки (снег за 1 час)*: {snow} мм\n"
+
+    # Добавляем информацию о качестве воздуха
+    if air_data:
+        message += format_air_quality_message(air_data)
+
+    # Добавляем информацию о солнечной активности
+    if solar_data:
+        message += format_solar_activity_message(solar_data)
+
+    # Добавляем информацию о радиации
+    if radiation_data:
+        message += format_radiation_message(radiation_data)
 
     if forecast_data and forecast_data.get('list'):
         message += "\n*Прогноз на ближайшее время:*\n"
@@ -139,7 +318,16 @@ async def weather_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     current_weather, forecast = get_weather_data(city_name, OPENWEATHER_API_KEY)
 
     if current_weather:
-        weather_text = format_weather_message(current_weather, forecast)
+        # Получаем координаты города
+        lat = current_weather['coord']['lat']
+        lon = current_weather['coord']['lon']
+        
+        # Получаем дополнительную информацию
+        air_data = get_air_quality_data(lat, lon, AIR_QUALITY_API_KEY)
+        solar_data = get_solar_activity_data()
+        radiation_data = get_radiation_data(lat, lon)
+        
+        weather_text = format_weather_message(current_weather, forecast, air_data, solar_data, radiation_data)
         await update.message.reply_markdown_v2(weather_text)
     else:
         await update.message.reply_text(forecast or "Не удалось получить данные о погоде для этого города.")
@@ -157,6 +345,12 @@ def main():
     if not OPENWEATHER_API_KEY:
         print("Ошибка: Переменная окружения OPENWEATHER_API_KEY не установлена. Пожалуйста, установите API ключ OpenWeatherMap.")
         return
+    
+    # Предупреждения о дополнительных API ключах
+    if not AIR_QUALITY_API_KEY:
+        print("Предупреждение: AIR_QUALITY_API_KEY не установлен. Информация о качестве воздуха будет недоступна.")
+    if not SOLAR_API_KEY:
+        print("Предупреждение: SOLAR_API_KEY не установлен. Информация о солнечной активности будет ограничена.")
 
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
