@@ -2,6 +2,7 @@ import os
 import requests
 import aiohttp
 import asyncio
+import re
 from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -14,14 +15,12 @@ SOLAR_API_KEY = os.getenv("SOLAR_API_KEY")  # NASA Solar Flare API (беспла
 
 # --- Функции для работы с различными API ---
 
-def escape_markdown(text):
+def escape_markdown(text: str) -> str:
     """
-    Экранирует специальные символы для Telegram Markdown V2.
+    Экранирует все специальные символы для Telegram Markdown V2.
     """
-    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-    for char in special_chars:
-        text = text.replace(char, f'\\{char}')
-    return text
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
 def get_weather_data(city_name, api_key):
     """
@@ -328,6 +327,7 @@ async def weather_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         radiation_data = get_radiation_data(lat, lon)
         
         weather_text = format_weather_message(current_weather, forecast, air_data, solar_data, radiation_data)
+        print(weather_text)  # Для отладки
         await update.message.reply_markdown_v2(weather_text)
     else:
         await update.message.reply_text(forecast or "Не удалось получить данные о погоде для этого города.")
