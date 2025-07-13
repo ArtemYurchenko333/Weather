@@ -344,6 +344,7 @@ def format_weather_message(current_data, forecast_data, air_data=None, solar_dat
             )
 
     # Экранируем весь текст после форматирования
+    message += "\n\nУ вас сегодня будет хорошое настроение"
     return escape_markdown(message)
 
 # --- Функции-обработчики для Telegram бота ---
