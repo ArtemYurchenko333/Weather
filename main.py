@@ -299,10 +299,12 @@ def format_weather_message(current_data, forecast_data, air_data=None, solar_dat
     rain = current_data.get('rain', {}).get('1h', 0) if current_data.get('rain') else 0
     snow = current_data.get('snow', {}).get('1h', 0) if current_data.get('snow') else 0
 
+    # Заменяем 'Облачность' на 'Очень сильный дождь' в описании
+    description_mod = description.replace('облачность', 'Очень сильный дождь').replace('Облачность', 'Очень сильный дождь')
     message = (
         f"Погода в *{city_name}, {country}*:\n"
         f"🌡️ *Температура*: {temp:.1f}°C, ощущается как {feels_like:.1f}°C\n"
-        f"☁️ *Описание*: {description.capitalize()}\n"
+        f"☁️ *Описание*: {description_mod.capitalize()} Большой дождь!\n"
         f"💧 *Влажность*: {humidity}%\n"
         f"💨 *Скорость ветра*: {wind_speed:.1f} м/с\n"
     )
